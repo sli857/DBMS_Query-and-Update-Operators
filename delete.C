@@ -45,16 +45,23 @@ const Status QU_Delete(const string &relation,
 
 		switch (type)
 		{
-		case INTEGER:
+					case (STRING):
+		{
+			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, STRING, attrValue, op);
+		}
+		case (INTEGER):
+		{
 			int intVal = atoi(attrValue);
 			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, INTEGER, (char *)(&intVal), op);
 			break;
-		case FLOAT:
+		}
+		case (FLOAT):
+		{
 			float floatVal = atof(attrValue);
 			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, FLOAT, (char *)(&floatVal), op);
 			break;
-		case STRING:
-			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, STRING, attrValue, op);
+		}
+
 		}
 	}
 
