@@ -13,72 +13,86 @@ const Status QU_Insert(const string &relation,
 					   const int attrCnt,
 					   const attrInfo attrList[])
 {
+	AttrDesc *attrs;
+	int currentAttrCnt;
 	Status status;
-	RID tupleID;
-	AttrDesc *schemaAttributes;
-	int schemaAttrCount;
-	int recordSize = 0;
-	char *recordData;
-	cout << "Insert!" << endl;
-	status = attrCat->getRelInfo(relation, schemaAttrCount, schemaAttributes);
-	if (status != OK)
+
+	if ((status = attrCat->getRelInfo(relation, currentAttrCnt, attrs)) != OK)
 	{
 		return status;
 	}
 
-	if (schemaAttrCount != attrCnt)
+	if (currentAttrCnt != attrCnt)
 	{
-		return BADSCANPARM;
+		return UNIXERR;
 	}
 
-	for (int i = 0; i < schemaAttrCount; ++i)
+	int recLen = 0;
+	for (int i = 0; i < attrCnt; i++)
 	{
-		recordSize += schemaAttributes[i].attrLen;
+		recLen += attrs[i].attrLen;
 	}
 
-	InsertFileScan insertionScan(relation, status);
-	if (status != OK)
-	{
-		return status;
-	}
+	InsertFileScan insertFileScan(relation, status);
+	ASSERT(status == OK);
 
-	recordData = (char *)malloc(recordSize);
-	if (!recordData)
+	char *insertData;
+	if (!(insertData = new char[recLen]))
 	{
 		return INSUFMEM;
 	}
 
-	memset(recordData, 0, recordSize);
-
-	bool attrFound;
-	for (int i = 0; i < schemaAttrCount; ++i)
+	int insertOffset = 0;
+	int intValue = 0;
+	float floatValue = 0;
+	for (int i = 0; i < attrCnt; i++)
 	{
-		attrFound = false;
-		for (int j = 0; j < attrCnt; ++j)
+		bool attrFound = false;
+		for (int j = 0; j < attrCnt; j++)
 		{
-			if (strcmp(attrList[j].attrName, schemaAttributes[i].attrName) == 0)
+			if (strcmp(attrs[i].attrName, attrList[j].attrName) == 0)
 			{
-				attrFound = true;
-				if (attrList[j].attrType != schemaAttributes[i].attrType)
+				insertOffset = attrs[i].attrOffset;
+
+				switch (attrList[j].attrType)
 				{
-					free(recordData);
-					return ATTRTYPEMISMATCH;
+				case STRING:
+					memcpy((char *)insertData + insertOffset, (char *)attrList[j].attrValue, attrs[i].attrLen);
+					break;
+
+				case INTEGER:
+					intValue = atoi((char *)attrList[j].attrValue);
+					memcpy((char *)insertData + insertOffset, &intValue, attrs[i].attrLen);
+					break;
+
+				case FLOAT:
+					floatValue = atof((char *)attrList[j].attrValue);
+					memcpy((char *)insertData + insertOffset, &floatValue, attrs[i].attrLen);
+					break;
 				}
-				void *dest = recordData + schemaAttributes[i].attrOffset;
-				memcpy(dest, attrList[j].attrValue, schemaAttributes[i].attrLen);
+
+				attrFound = true;
 				break;
 			}
 		}
-		if (!attrFound)
+
+		if (attrFound == false)
 		{
-			free(recordData);
-			return ATTRNOTFOUND;
+			delete[] insertData;
+			free(attrs);
+			return UNIXERR;
 		}
 	}
 
-	Record newRecord = {recordData, recordSize};
-	status = insertionScan.insertRecord(newRecord, tupleID);
-	free(recordData);
+	Record insertRec;
+	insertRec.data = (void *)insertData;
+	insertRec.length = recLen;
+
+	RID insertRID;
+	status = insertFileScan.insertRecord(insertRec, insertRID);
+
+	delete[] insertData;
+	free(attrs);
 
 	return status;
 }

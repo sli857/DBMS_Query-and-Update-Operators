@@ -15,70 +15,56 @@ const Status QU_Delete(const string &relation,
 					   const Datatype type,
 					   const char *attrValue)
 {
-	if (relation.empty())
+	Status status;
+	RID rid;
+	AttrDesc attrDesc;
+
+	HeapFileScan *heapFileScan = new HeapFileScan(relation, status);
+	if (status != OK)
 	{
-		return BADCATPARM;
+		return status;
+	}
+	attrCat->getInfo(relation, attrName, attrDesc);
+
+	int offset = attrDesc.attrOffset;
+	int length = attrDesc.attrLen;
+
+	int intValue;
+	float floatValue;
+
+	switch (type)
+	{
+	case STRING:
+		status = heapFileScan->startScan(offset, length, type, attrValue, op);
+		break;
+
+	case INTEGER:
+		intValue = atoi(attrValue);
+		status = heapFileScan->startScan(offset, length, type, (char *)&intValue, op);
+		break;
+
+	case FLOAT:
+		floatValue = atof(attrValue);
+		status = heapFileScan->startScan(offset, length, type, (char *)&floatValue, op);
+		break;
 	}
 
-	HeapFileScan *heapScanner;
-	Status opStatus;
-	AttrDesc attributeDetails;
-	RID recordID;
-	int intVal;
-	float floatVal;
-	cout << "Delete!" << endl;
-	heapScanner = new HeapFileScan(relation, opStatus);
-	if (opStatus != OK)
+	if (status != OK)
 	{
-		return opStatus;
+		delete heapFileScan;
+		return status;
 	}
 
-	if (attrName.empty())
+	while ((status = heapFileScan->scanNext(rid)) == OK)
 	{
-		opStatus = heapScanner->startScan(0, 0, STRING, nullptr, EQ);
-	}
-	else
-	{
-		opStatus = attrCat->getInfo(relation, attrName, attributeDetails);
-		if (opStatus != OK)
+		if ((status = heapFileScan->deleteRecord()) != OK)
 		{
-			delete heapScanner;
-			return opStatus;
-		}
-
-		switch (type)
-		{
-		case INTEGER:
-			intVal = atoi(attrValue);
-			opStatus = heapScanner->startScan(attributeDetails.attrOffset, attributeDetails.attrLen, INTEGER, reinterpret_cast<const char *>(&intVal), op);
-			break;
-		case FLOAT:
-			floatVal = atof(attrValue);
-			opStatus = heapScanner->startScan(attributeDetails.attrOffset, attributeDetails.attrLen, FLOAT, reinterpret_cast<const char *>(&floatVal), op);
-			break;
-		default:
-			opStatus = heapScanner->startScan(attributeDetails.attrOffset, attributeDetails.attrLen, STRING, attrValue, op);
-		}
-	}
-
-	if (opStatus != OK)
-	{
-		delete heapScanner;
-		return opStatus;
-	}
-
-	while ((opStatus = heapScanner->scanNext(recordID)) == OK)
-	{
-		opStatus = heapScanner->deleteRecord();
-		if (opStatus != OK)
-		{
-			delete heapScanner;
-			return opStatus;
+			return status;
 		}
 	}
 
-	heapScanner->endScan();
-	delete heapScanner;
+	heapFileScan->endScan();
+	delete heapFileScan;
 
-	return (opStatus == FILEEOF) ? OK : opStatus;
+	return OK;
 }
