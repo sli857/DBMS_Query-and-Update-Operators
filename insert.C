@@ -14,7 +14,6 @@ const Status QU_Insert(const string &relation,
 					   const attrInfo attrList[])
 {
 	Status status;
-	RID rid;
 	AttrDesc *attrDesc;
 	int attrCount;
 
@@ -75,6 +74,7 @@ const Status QU_Insert(const string &relation,
 		}
 	}
 
+	RID rid;
 	Record newRecord = {recordData, recordSize};
 	status = insertionScan.insertRecord(newRecord, rid);
 	delete recordData;
