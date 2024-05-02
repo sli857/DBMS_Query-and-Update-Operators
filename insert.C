@@ -18,8 +18,6 @@ const Status QU_Insert(const string &relation,
 	AttrDesc *attrDesc;
 	int attrCount;
 
-
-
 	status = attrCat->getRelInfo(relation, attrCount, attrDesc);
 	if (status != OK)
 	{
