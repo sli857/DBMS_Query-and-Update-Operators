@@ -107,20 +107,16 @@ const Status ScanSelect(const string &result,
 						const int reclen)
 {
 
-	Status status;
-	InsertFileScan insertionScan(result, status);
-	if (status != OK)
-	{
-		return status;
-	}
-
-	char tmpData[reclen];
-	Record outrec = {.data=(void*) tmpData, .length=reclen};
-
-	if (attrDesc == NULL)
+	if (attrDesc == nullptr)
 	{
 		return OK;
 	}
+
+	if(projNames == nullptr){
+		return BADCATPARM;
+	}
+
+	Status status;
 	HeapFileScan hfScan(std::string(attrDesc->relName), status);
 	if (status != OK)
 	{
@@ -129,7 +125,7 @@ const Status ScanSelect(const string &result,
 
 	int offset = attrDesc->attrOffset;
 	int len = attrDesc->attrLen;
-	auto type = (Datatype) attrDesc->attrType;
+	auto type = (Datatype)attrDesc->attrType;
 	status = hfScan.startScan(offset, len, type, filter, op);
 
 	if (status != OK)
@@ -139,7 +135,9 @@ const Status ScanSelect(const string &result,
 
 	RID rid;
 	Record tmpRec;
-	while ((status=hfScan.scanNext(rid)) == OK)
+	char tmpData[reclen];
+
+	while ((status = hfScan.scanNext(rid)) == OK)
 	{
 		status = hfScan.getRecord(tmpRec);
 		if (status != OK)
@@ -147,21 +145,31 @@ const Status ScanSelect(const string &result,
 			return status;
 		}
 
-		int offset = 0;
+		// store head address of tmpData
+		void *tmpDataHead = &tmpData;
 		for (int i = 0; i < projCnt; i++)
 		{
-			memcpy(tmpData + offset,
-				   (char *)tmpRec.data + projNames[i].attrOffset,
-				   projNames[i].attrLen);
-			offset += projNames[i].attrLen;
+			memmove(tmpDataHead,
+					(char *)tmpRec.data + projNames[i].attrOffset,
+					projNames[i].attrLen);
+			// increment address
+			tmpDataHead += projNames[i].attrLen;
 		}
 
-		RID outRID;
-		status = insertionScan.insertRecord(outrec, outRID);
+		InsertFileScan insertionScan(result, status);
 		if (status != OK)
 		{
 			return status;
 		}
+
+		RID resultRID;
+		Record resultRec = {.data = (void *)tmpData, .length = reclen};
+		if ((status = insertionScan.insertRecord(resultRec, resultRID)) != OK)
+		{
+			return status;
+		}
 	}
-	return status==FILEEOF? OK:status;
+
+	// Expect FILEEOF
+	return status == FILEEOF ? OK : status;
 }
