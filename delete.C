@@ -1,6 +1,7 @@
 #include "catalog.h"
 #include "query.h"
 
+
 /*
  * Deletes records from a specified relation.
  *
@@ -9,79 +10,60 @@
  * 	an error code otherwise
  */
 
-const Status QU_Delete(const string &relation,
-					   const string &attrName,
-					   const Operator op,
-					   const Datatype type,
-					   const char *attrValue)
+const Status QU_Delete(const string & relation, 
+		       const string & attrName, 
+		       const Operator op,
+		       const Datatype type, 
+		       const char *attrValue)
 {
-	if (relation.empty())
-	{
-		return ATTRNOTFOUND;
-	}
-
 	Status status;
-	AttrDesc attrDesc;
 	RID rid;
+	AttrDesc attrDesc;
 
-	HeapFileScan *heapFileScan = new HeapFileScan(relation, status);
-	if (status != OK)
-	{
-		return status;
+  	HeapFileScan* heapFileScan = new HeapFileScan(relation, status);
+  	if(status != OK) {
+  		return status;
 	}
+  	attrCat->getInfo(relation, attrName, attrDesc);
 
-	if (attrName.empty())
-	{
-		status = heapFileScan->startScan(0, 0, STRING, nullptr, EQ);
+	int offset = attrDesc.attrOffset;
+	int length = attrDesc.attrLen;
+
+	int intValue;
+	float floatValue;
+
+	switch(type) {
+		case STRING:
+			status = heapFileScan->startScan(offset, length, type, attrValue, op);
+			break;
+	
+		case INTEGER:
+		 	intValue = atoi(attrValue);
+			status = heapFileScan->startScan(offset, length, type, (char *)&intValue, op);
+			break;
+	
+		case FLOAT:
+			floatValue = atof(attrValue);
+			status = heapFileScan->startScan(offset, length, type, (char *)&floatValue, op);
+			break;
 	}
-	else
-	{
-		status = attrCat->getInfo(relation, attrName, attrDesc);
-		if (status != OK)
-		{
-			delete heapFileScan;
+	
+  	if (status != OK) {
+    	delete heapFileScan;
+    	return status;
+  	}
+
+  	while((status = heapFileScan->scanNext(rid)) == OK) {
+    	if ((status = heapFileScan->deleteRecord()) != OK){
 			return status;
 		}
-
-		switch (type)
-		{
-					case (STRING):
-		{
-			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, STRING, attrValue, op);
-		}
-		case (INTEGER):
-		{
-			int intVal = atoi(attrValue);
-			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, INTEGER, (char *)(&intVal), op);
-			break;
-		}
-		case (FLOAT):
-		{
-			float floatVal = atof(attrValue);
-			status = heapFileScan->startScan(attrDesc.attrOffset, attrDesc.attrLen, FLOAT, (char *)(&floatVal), op);
-			break;
-		}
-
-		}
-	}
-
-	if (status != OK)
-	{
-		delete heapFileScan;
-		return status;
-	}
-
-	while ((status = heapFileScan->scanNext(rid)) == OK)
-	{
-		if ((status = heapFileScan->deleteRecord()) != OK)
-		{
-			delete heapFileScan;
-			return status;
-		}
-	}
+  	}
 
 	heapFileScan->endScan();
-	delete heapFileScan;
+    delete heapFileScan;
 
-	return (status == FILEEOF) ? OK : status;
+  	return OK;
+
 }
+
+
