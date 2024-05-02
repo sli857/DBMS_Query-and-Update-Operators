@@ -69,6 +69,12 @@ dbcreate.pure:	dbcreate.o $(DBOBJS) $(LIBS)
 
 clean:
 		(rm -f core *.bak *~ *.o minirel dbcreate dbdestroy *.pure;cd parser;make clean)
+		rm *.txt
+
+test:
+		./qutest 1 > test1.txt
+		./qutest 5 > test5.txt
+		./qutest 7 > test7.txt
 
 depend:
 		makedepend -I /s/gcc/include/g++ -f$(MAKEFILE) \
