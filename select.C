@@ -106,7 +106,6 @@ const Status ScanSelect(const string &result,
 						const char *filter,
 						const int reclen)
 {
-	cout << "Doing HeapFileScan Selection using ScanSelect()" << endl;
 
 	Status status;
 	InsertFileScan insertionScan(result, status);
@@ -115,43 +114,44 @@ const Status ScanSelect(const string &result,
 		return status;
 	}
 
-	char data[reclen];
-	Record outrec;
-	outrec.data = (void *)data;
-	outrec.length = reclen;
+	char tmpData[reclen];
+	Record outrec = {.data=(void*) tmpData, .length=reclen};
+
 	if (attrDesc == NULL)
 	{
 		return OK;
 	}
-	HeapFileScan fileScan(string(attrDesc->relName), status);
+	HeapFileScan hfScan(std::string(attrDesc->relName), status);
 	if (status != OK)
 	{
 		return status;
 	}
 
-	status = fileScan.startScan(attrDesc->attrOffset, attrDesc->attrLen, (Datatype)attrDesc->attrType, filter, op);
+	int offset = attrDesc->attrOffset;
+	int len = attrDesc->attrLen;
+	auto type = (Datatype) attrDesc->attrType;
+	status = hfScan.startScan(offset, len, type, filter, op);
+
 	if (status != OK)
 	{
 		return status;
 	}
 
 	RID rid;
-	Record temrec;
-	while (fileScan.scanNext(rid) == OK)
+	Record tmpRec;
+	while ((status=hfScan.scanNext(rid)) == OK)
 	{
-
-		status = fileScan.getRecord(temrec);
+		status = hfScan.getRecord(tmpRec);
 		if (status != OK)
 		{
 			return status;
 		}
 
 		int offset = 0;
-
 		for (int i = 0; i < projCnt; i++)
 		{
-			memcpy(data + offset,
-				   (char *)temrec.data + projNames[i].attrOffset,
+			memcpy(tmpData + offset,
+				   (char *)tmpRec.data + projNames[i].attrOffset,
 				   projNames[i].attrLen);
 			offset += projNames[i].attrLen;
 		}
@@ -163,5 +163,5 @@ const Status ScanSelect(const string &result,
 			return status;
 		}
 	}
-	return OK;
+	return status==FILEEOF? OK:status;
 }
